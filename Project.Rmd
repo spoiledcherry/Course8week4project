@@ -1,0 +1,98 @@
+###Course8Week4Project
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement ??? a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+##Load Data
+
+Download the training and testing data from the provided links.
+```{r}
+library(caret)
+library(rpart.plot)
+train <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), header = T)
+test <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), header = T)
+dim(train)
+dim(test)
+```
+
+##Clean data
+By glancing the data, we can find a lot of NA values and blank values, which will not contribute to the prediction. So we have to remove all variables which doesn't count. We define that if over 90% of one column are  NA or blank values, we will delete that column.
+And for predition, the first 7 columns are not related with classe variable, so we will also remove the first 7 column for train data. 
+```{r}
+retrain1 <- train[,-which(apply(train, 2, function(x){mean(is.na(x))>0.9}))]
+retrain2 <- retrain1[,-which(apply(retrain1, 2, function(x){mean(x=="")>0.9}))]
+retrain <- retrain2[,-c(1:7)]
+retest1 <- test[,-which(apply(test, 2, function(x){mean(is.na(x))>0.9}))]
+retest2 <- retest1[,,-which(apply(retest1, 2, function(x){mean(x=="")>0.9}))]
+retest <- retest2[,-1]
+```
+
+##Build up the modules
+
+I will evaluate different machine learning methods to find a best one for prediction.
+
+###Prediction with Classification Tree
+```{r}
+set.seed(123)
+inTrain1<- createDataPartition(retrain$classe, p=0.75, list = FALSE)
+traindata <- retrain[inTrain1, ]
+testdata <- retrain[-inTrain1, ]
+```
+
+```{r}
+trcontrol <- trainControl(method="cv", number=5)
+fitct <- train(classe~., data=traindata, method="rpart", trControl=trcontrol)
+rpart.plot(fitct$finalModel)
+plot(fitct)
+```
+
+```{r}
+predrpart <- predict(fitct, newdata = testdata)
+result1 <- confusionMatrix(testdata$classe, predrpart)
+result1$table
+result1$overall
+```
+
+We notice that the accurracy of this method is 0.48, which means the prediction is not good.
+
+###Prediction with Random Tree
+```{r cache=TRUE}
+trcontrol <- trainControl(method="cv", number=5)
+fitrf <- train(classe~., data=traindata, method="rf", trControl=trcontrol, verbose=FALSE)
+plot(fitrf)
+plot(fitrf$finalModel)
+```
+
+```{r}
+predrf <- predict(fitrf, newdata = testdata)
+result2 <- confusionMatrix(testdata$classe, predrf)
+result2$table
+result2$overall
+```
+
+The accuracy of this module is 0.993, which is pretty good.
+
+###Prediction with Gradient Tree Boosting
+```{r cache=TRUE}
+fitgbm <- train(classe~., data=traindata, method="gbm", trControl=trcontrol, verbose=FALSE)
+plot(fitgbm)
+```
+
+```{r}
+predgbm <- predict(fitgbm, newdata = testdata)
+result3 <- confusionMatrix(testdata$classe, predgbm)
+result3$table
+result3$overall
+```
+
+The accuracy is 0.961, which is not as good as random forest.
+
+##Conclusion
+
+By comparing different methods, we finnally choose the random forest module for the prediction. 
+
+```{r cache=TRUE}
+Finalpredit <- predict(fitrf, newdata = retest)
+Finalpredit
+```
